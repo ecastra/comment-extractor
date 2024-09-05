@@ -1,4 +1,6 @@
 
+// comments.ts
+
 // Comment States Bitmask
 const CommentStates = {
   None: 0,
@@ -12,6 +14,7 @@ const CommentStates = {
   Expression: 1 << 7, // Inside expression within template literal
   ArrayLiteral: 1 << 8,
   ClassDeclaration: 1 << 9,
+  InClassDeclaration: 1 << 10, // Inside a class declaration
 };
 
 // Punctuator States Bitmask
@@ -50,24 +53,24 @@ const PunctuatorStates = {
   SlashEquals: 1073741824,
   PercentEquals: -2147483648, // Note: Using negative value to avoid overflow
   DoubleStarEquals: 1, // Use a different bit (wrapping around) for 32nd bit
-  Ampersand: 2, 
+  Ampersand: 2,
   Pipe: 4,
   Caret: 8,
   Tilde: 16,
-  LeftShift: 32, 
-  RightShift: 64, 
-  UnsignedRightShift: 128, 
-  Question: 256, 
-  Colon2: 512, 
-  Ellipsis: 1024, 
-  Increment: 2048, 
-  Decrement: 4096, 
-  Typeof: 8192, 
-  Instanceof: 16384, 
-  In: 32768, 
-  DollarSign: 65536, 
-  AtSign: 131072, 
-  Backtick: 262144, 
+  LeftShift: 32,
+  RightShift: 64,
+  UnsignedRightShift: 128,
+  Question: 256,
+  Colon2: 512,
+  Ellipsis: 1024,
+  Increment: 2048,
+  Decrement: 4096,
+  Typeof: 8192,
+  Instanceof: 16384,
+  In: 32768,
+  DollarSign: 65536,
+  AtSign: 131072,
+  Backtick: 262144,
 };
 
 // Comment Data Type
@@ -89,7 +92,7 @@ function collectComments(source: string, previousTokenEnd: number, nextTokenStar
   // Helper functions to determine character types
   const isLineBreak = (charCode: number) => charCode === 0x0A || charCode === 0x0D || (charCode === 0x0D && source.charCodeAt(i + 1) === 0x0A);
   const isStringQuote = (charCode: number) => charCode === 0x22 || charCode === 0x27 || charCode === 0x60; // " or ' or `
-  const isUnicodeWhitespace = (charCode: number) => charCode >= 0x09 && charCode <= 0x0D || charCode === 0x20 || (charCode >= 0x85 && charCode <= 0xA0); 
+  const isUnicodeWhitespace = (charCode: number) => charCode >= 0x09 && charCode <= 0x0D || charCode === 0x20 || (charCode >= 0x85 && charCode <= 0xA0);
 
   // Handle comments at the beginning of the code
   if (previousTokenEnd === 0) {
@@ -156,10 +159,14 @@ function collectComments(source: string, previousTokenEnd: number, nextTokenStar
 
     // Handle class declarations
     if (charCode === 0x43 && source[i + 1] === 0x6C && source[i + 2] === 0x61 && source[i + 3] === 0x73 && source[i + 4] === 0x73 &&
-      !(commentState & (CommentStates.String | CommentStates.TemplateLiteral | CommentStates.Multiline | CommentStates.Html | CommentStates.RegExp | CommentStates.JsxExpression | CommentStates.ArrayLiteral))) {
+        !(commentState & (CommentStates.String | CommentStates.TemplateLiteral | CommentStates.Multiline | CommentStates.Html | CommentStates.RegExp | CommentStates.JsxExpression | CommentStates.ArrayLiteral))) {
       commentState |= CommentStates.ClassDeclaration;
       i += 4;
     } else if (commentState & CommentStates.ClassDeclaration && charCode === 0x7B) {
+      commentState |= CommentStates.InClassDeclaration;
+      i += 1;
+    } else if (commentState & CommentStates.InClassDeclaration && charCode === 0x7D) {
+      commentState &= ~CommentStates.InClassDeclaration;
       commentState &= ~CommentStates.ClassDeclaration;
     }
 
