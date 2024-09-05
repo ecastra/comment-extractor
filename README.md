@@ -14,12 +14,13 @@ The comment extractor is a powerful tool designed to efficiently identify and ex
 * **Recognizes Comments Near Special Characters:** Handles comments adjacent to punctuation characters and symbols, including those in template literals.
 * **Efficient Performance:** Utilizes bitmasks and optimized string search algorithms for fast comment extraction, especially in large codebases.
 * **Robust Error Handling:** Includes safeguards to handle potential errors during comment parsing and provides informative feedback.
+* **Handles Comments in Class Declarations:** Accurately identifies and extracts comments within class declarations, even those interspersed with semicolons.
 
 **Examples:**
 
 **Example 1: Comments near special characters and punctuation:**
 
-```
+```javascript
 const value = 10 + // This is a comment adjacent to '+'
                20;
 const message = "This is a string with a comment /* inside */";
@@ -29,7 +30,7 @@ const result = value * 2; // This is a comment after '*'
 
 **Example 2: Nested comments within comments:**
 
-```
+```javascript
 /* This is a multiline comment
   * with a nested single-line comment: // This is a nested comment 
   * and another nested multiline comment: /* Nested multiline comment */
@@ -38,7 +39,7 @@ const result = value * 2; // This is a comment after '*'
 
 **Example 3: Comments within special constructs:**
 
-```
+```javascript
 const message = "This is a string with a comment /* inside */";
 const regex = /This is a regex with a comment /* inside */ /;
 const jsxElement = <div>{/* This is a JSX comment */}</div>; 
@@ -46,7 +47,7 @@ const jsxElement = <div>{/* This is a JSX comment */}</div>;
 
 **Example 4:  Comments at the beginning and end of code:**
 
-```
+```javascript
 // This is a comment at the beginning of the code
 const value = 10; 
 // This is a comment at the end of the code
@@ -54,13 +55,13 @@ const value = 10;
 
 **Example 5:  Comments with escaped characters:**
 
-```
+```javascript
 /* This is a comment with an escaped backslash: \\* */
 ```
 
 **Example 6: HTML and JSDoc Comments:**
 
-```
+```javascript
 /** This is a JSDoc comment 
   * with a nested HTML comment: <!-- This is an HTML comment --> 
   */
@@ -70,14 +71,14 @@ const value = 10;
 
 **Example 7: Comments near punctuation:**
 
-```
+```javascript
 const value = 10 + // This is a comment adjacent to '+'
                20;
 ```
 
 **Example 8: Comments before and after template literals:**
 
-```
+```javascript
 // This is a comment before the template literal
 \`This is a template literal with a comment /* inside */\`; 
 // This is a comment after the template literal
@@ -85,7 +86,7 @@ const value = 10 + // This is a comment adjacent to '+'
 
 **Example 9:  Comments in JSX:**
 
-```
+```javascript
 const jsxElement = <div>{/* This is a JSX comment */}</div>;
 ```
 
@@ -105,6 +106,18 @@ const myArray = [
 const myArray = [
   ,,,/* hello  */,,
 ];
+```
+
+**Example 12: Comments within class declarations:**
+
+```javascript
+class MyClass {
+  // This is a comment inside the class.
+  ;;;/*++*/;;; // This is another comment with semicolons.
+  method() {
+    // This is a comment inside a method.
+  }
+}
 ```
 
 **Using the Comment Extractor in a Printer:**
@@ -155,14 +168,18 @@ const output = printNode(myNode, 'before');
 console.log(output);
 ```
 
-**Resulting Output (Example 11):**
+**Resulting Output (Example 12):**
 
 ```javascript
-const myArray = [
-  ,,,
-  /* hello  */
-  ,,
-];
+class MyClass {
+  ;;;
+  /* ++++ */
+  ;;;
+  // This is a comment inside the class.
+  method() {
+    // This is a comment inside a method.
+  }
+}
 ```
 
 **Important:**
@@ -177,3 +194,5 @@ This document has provided a comprehensive overview of the JavaScript and TypeSc
 
 
 
+
+```
