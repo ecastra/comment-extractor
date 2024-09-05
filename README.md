@@ -15,6 +15,7 @@ The comment extractor is a powerful tool designed to efficiently identify and ex
 * **Efficient Performance:** Utilizes bitmasks and optimized string search algorithms for fast comment extraction, especially in large codebases.
 * **Robust Error Handling:** Includes safeguards to handle potential errors during comment parsing and provides informative feedback.
 * **Handles Comments in Class Declarations:** Accurately identifies and extracts comments within class declarations, even those interspersed with semicolons.
+* **Handles Comments in Class Generators:** Accurately identifies and extracts comments within class generators, ensuring correct parsing of the `*` symbol.
 
 **Examples:**
 
@@ -120,6 +121,63 @@ class MyClass {
 }
 ```
 
+**Example 13: Comments within class generators:**
+
+```javascript
+class MyClass {
+  // This is a comment inside the class.
+  *generatorMethod() {
+    // This is a comment inside the generator method.
+    yield 1; 
+    // This is another comment inside the generator method.
+    yield 2;
+  }
+
+  // This is another comment inside the class. 
+}
+```
+
+**Example 14: Comments with different types and sequences:**
+
+```javascript
+// This is a single-line comment at the beginning. 
+/* This is a multiline comment 
+   spanning multiple lines.
+   It contains a nested single-line comment: // This is a nested comment 
+   and another nested multiline comment: /* Nested multiline comment */
+*/
+
+/** This is a JSDoc comment with a nested single-line comment: // This is a nested comment 
+  * It spans multiple lines.
+  */
+
+class MyClass {
+  // This is a comment inside the class. 
+  ;;;/*++*/;;; // This is another comment with semicolons.
+  method() {
+    // This is a comment inside a method.
+  }
+
+  *generatorMethod() {
+    // This is a comment inside the generator method.
+    yield 1; 
+    // This is another comment inside the generator method.
+    yield 2;
+  }
+
+  // This is another comment inside the class.
+}
+
+X =/*arrow*/> y; // This is a comment after a punctuator.
+
+/* This is a multiline comment 
+   spanning multiple lines.
+   It contains a nested single-line comment: // This is a nested comment 
+   and another nested multiline comment: /* Nested multiline comment */
+*/
+// This is a single-line comment at the end.
+```
+
 **Using the Comment Extractor in a Printer:**
 
 Here's a conceptual example of how you might use the `collectComments` function within a JavaScript or TypeScript printer to include comments in your output:
@@ -168,18 +226,51 @@ const output = printNode(myNode, 'before');
 console.log(output);
 ```
 
-**Resulting Output (Example 12):**
+**Resulting Output (Example 14):**
 
 ```javascript
+// This is a single-line comment at the beginning. 
+/* This is a multiline comment 
+   spanning multiple lines.
+   It contains a nested single-line comment: // This is a nested comment 
+   and another nested multiline comment: /* Nested multiline comment */
+*/
+
+/** This is a JSDoc comment with a nested single-line comment: // This is a nested comment 
+  * It spans multiple lines.
+  */
+
 class MyClass {
+  // This is a comment inside the class. 
   ;;;
   /* ++++ */
   ;;;
-  // This is a comment inside the class.
+  // This is another comment with semicolons.
   method() {
     // This is a comment inside a method.
   }
+
+  *generatorMethod() {
+    // This is a comment inside the generator method.
+    yield 1; 
+    // This is another comment inside the generator method.
+    yield 2;
+  }
+
+  // This is another comment inside the class.
 }
+
+X =
+/* arrow */
+> y;
+// This is a comment after a punctuator.
+
+/* This is a multiline comment 
+   spanning multiple lines.
+   It contains a nested single-line comment: // This is a nested comment 
+   and another nested multiline comment: /* Nested multiline comment */
+*/
+// This is a single-line comment at the end.
 ```
 
 **Important:**
@@ -195,4 +286,5 @@ This document has provided a comprehensive overview of the JavaScript and TypeSc
 
 
 
-```
+
+
