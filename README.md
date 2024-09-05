@@ -16,6 +16,18 @@ The comment extractor is a powerful tool designed to efficiently identify and ex
 * **Robust Error Handling:** Includes safeguards to handle potential errors during comment parsing and provides informative feedback.
 * **Handles Comments in Class Declarations:** Accurately identifies and extracts comments within class declarations, even those interspersed with semicolons.
 * **Handles Comments in Class Generators:** Accurately identifies and extracts comments within class generators, ensuring correct parsing of the `*` symbol.
+* **User-Configurable Comment Types:** Allows the user to specify which comment types to extract using the `commentTypes` option.
+
+**Options:**
+
+The comment extractor accepts an optional `options` object with the following property:
+
+- `commentTypes`: A string value specifying which comment types to extract. 
+    - `"all"`: Support all comment types (default).
+    - `"singleline"`: Support only single-line comments.
+    - `"multiline"`: Support only multiline comments.
+    - `"html"`: Support only HTML comments.
+    - `"jsdoc"`: Support only JSDoc comments.
 
 **Examples:**
 
@@ -168,7 +180,10 @@ class MyClass {
   // This is another comment inside the class.
 }
 
-X =/*arrow*/> y; // This is a comment after a punctuator.
+X =
+/* arrow */
+> y;
+// This is a comment after a punctuator.
 
 /* This is a multiline comment 
    spanning multiple lines.
@@ -279,12 +294,4 @@ X =
 * **Edge Cases:** Always be on the lookout for new edge cases as your codebase grows and changes. 
 
 By carefully considering the punctuation characters used in your specific ECMAScript grammar, you can make the `collectComments` function even more robust and accurate in identifying and collecting comments. 
-
-This document has provided a comprehensive overview of the JavaScript and TypeScript comment extractor, its implementation, and examples of its usage. Remember to test it thoroughly to ensure it meets your specific requirements. 
-
-
-
-
-
-
 
