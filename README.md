@@ -288,10 +288,4 @@ X =
 // This is a single-line comment at the end.
 ```
 
-**Important:**
-
-* **Thorough Testing:**  It's crucial to test the `collectComments` function with a wide range of code snippets, including those with special characters, nested comments, and various combinations of comment types. 
-* **Edge Cases:** Always be on the lookout for new edge cases as your codebase grows and changes. 
-
-By carefully considering the punctuation characters used in your specific ECMAScript grammar, you can make the `collectComments` function even more robust and accurate in identifying and collecting comments. 
-
+ 
