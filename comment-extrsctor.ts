@@ -1,4 +1,3 @@
-
 const CommentStates = {
   None: 0,
   Multiline: 1 << 0,
@@ -96,6 +95,7 @@ interface Comment {
   end: number;
   lines: number[];
   type: 'multiline' | 'singleline' | 'jsdoc' | 'html';
+  nested: boolean; // New property to indicate nesting
 }
 
 // Function to collect comments on demand based on previous and next token positions
@@ -115,6 +115,7 @@ function collectComments(
   let punctuatorState = PunctuatorStates.None;
   let currentLine = 0; // Track the current line number
   let inMultilineComment = false; // Flag to track if we are inside a multiline comment
+  let nestingLevel = 0; // Track nesting level for multiline comments
 
   // Optimized character type checks
   const isLineBreak = (charCode: number) => lineBreakLookup.includes(charCode);
@@ -268,6 +269,7 @@ function collectComments(
                 if (i + 2 < source.length && source[i + 2] !== '#') { // Check for '*/'
                   inMultilineComment = true;
                   commentStart = i;
+                  nestingLevel++;
                 }
               }
             }
@@ -279,7 +281,7 @@ function collectComments(
               j++;
             }
             // Add comment without checking for duplicates
-            comments.push({ start: i, end: j, lines: [currentLine, ...], type: 'singleline' });
+            comments.push({ start: i, end: j, lines: [currentLine, ...], type: 'singleline', nested: nestingLevel > 1 });
             i = j - 1;
           }
         } else if (charCode === 0x2A && source[i + 1] === '/' && !(commentState & (CommentStates.Multiline | CommentStates.Html)) && (options.commentTypes === 'all' || options.commentTypes === 'jsdoc')) {
@@ -288,7 +290,7 @@ function collectComments(
           commentStart = i - 1;
           i++;
           // Add comment without checking for duplicates
-          comments.push({ start: commentStart, end: i, lines: [currentLine, ...], type: 'jsdoc' });
+          comments.push({ start: commentStart, end: i, lines: [currentLine, ...], type: 'jsdoc', nested: nestingLevel > 1 });
         }
       }
     } else if (
@@ -366,6 +368,7 @@ function collectComments(
               if (i + 2 < source.length && source[i + 2] !== '#') { // Check for '*/'
                 inMultilineComment = true;
                 commentStart = i;
+                nestingLevel++;
               }
             }
           }
@@ -377,7 +380,7 @@ function collectComments(
             j++;
           }
           // Add comment without checking for duplicates
-          comments.push({ start: i, end: j, lines: [currentLine, ...], type: 'singleline' });
+          comments.push({ start: i, end: j, lines: [currentLine, ...], type: 'singleline', nested: nestingLevel > 1 });
           i = j - 1;
         }
       } else if (charCode === 0x2A && source[i + 1] === '/' && !(commentState & (CommentStates.Multiline | CommentStates.Html)) && (options.commentTypes === 'all' || options.commentTypes === 'jsdoc')) {
@@ -386,7 +389,7 @@ function collectComments(
         commentStart = i - 1;
         i++;
         // Add comment without checking for duplicates
-        comments.push({ start: commentStart, end: i, lines: [currentLine, ...], type: 'jsdoc' });
+        comments.push({ start: commentStart, end: i, lines: [currentLine, ...], type: 'jsdoc', nested: nestingLevel > 1 });
       }
       continue;
     } 
@@ -395,10 +398,12 @@ function collectComments(
     if (charCode === 0x2F && source[i + 1] === '*') {
       if (commentState & CommentStates.Multiline) {
         i = findMultilineCommentEnd(source, i) - 1;
+        nestingLevel--;
       } else if (options.commentTypes === 'all' || options.commentTypes === 'multiline') {
         if (i + 2 < source.length && source[i + 2] !== '#') { // Check for '*/'
           inMultilineComment = true;
           commentStart = i;
+          nestingLevel++;
         }
       }
       i++;
@@ -406,8 +411,9 @@ function collectComments(
       if (charCode === 0x2A && source[i + 1] === 0x2F) {
         inMultilineComment = false;
         // Add comment without checking for duplicates
-        comments.push({ start: commentStart, end: i + 2, lines: [currentLine, ...], type: 'multiline' });
+        comments.push({ start: commentStart, end: i + 2, lines: [currentLine, ...], type: 'multiline', nested: nestingLevel > 1 });
         i++;
+        nestingLevel--;
       }
     } else if (
       charCode === 0x3C &&
@@ -422,12 +428,12 @@ function collectComments(
       }
       i += 3;
       // Add comment without checking for duplicates
-      comments.push({ start: commentStart, end: i, lines: [currentLine, ...], type: 'html' });
+      comments.push({ start: commentStart, end: i, lines: [currentLine, ...], type: 'html', nested: nestingLevel > 1 });
     } else if (commentState & CommentStates.Html) {
       if (source[i] === '-' && source[i + 1] === '-' && source[i + 2] === '>') {
         commentState &= ~CommentStates.Html;
         // Add comment without checking for duplicates
-        comments.push({ start: commentStart, end: i + 3, lines: [currentLine, ...], type: 'html' });
+        comments.push({ start: commentStart, end: i + 3, lines: [currentLine, ...], type: 'html', nested: nestingLevel > 1 });
         i += 2;
       }
     } else if (
@@ -442,11 +448,11 @@ function collectComments(
       }
       i++;
       // Add comment without checking for duplicates
-      comments.push({ start: commentStart, end: i, lines: [currentLine, ...], type: 'jsdoc' });
+      comments.push({ start: commentStart, end: i, lines: [currentLine, ...], type: 'jsdoc', nested: nestingLevel > 1 });
     } else if (commentState & CommentStates.JsDoc && isLineBreak(charCode)) {
       commentState &= ~CommentStates.JsDoc;
       // Add comment without checking for duplicates
-      comments.push({ start: commentStart, end: i, lines: [currentLine, ...], type: 'jsdoc' });
+      comments.push({ start: commentStart, end: i, lines: [currentLine, ...], type: 'jsdoc', nested: nestingLevel > 1 });
     } else if (commentState & CommentStates.JsDoc) {
       if (isLineBreak(charCode)) {
         currentLine++;
@@ -465,7 +471,7 @@ function collectComments(
           j++;
         }
         // Add comment without checking for duplicates
-        comments.push({ start: i, end: j, lines: [currentLine, ...], type: 'singleline' });
+        comments.push({ start: i, end: j, lines: [currentLine, ...], type: 'singleline', nested: nestingLevel > 1 });
         i = j - 1;
       }
     } else if (isLineBreak(charCode)) {
@@ -483,7 +489,7 @@ function collectComments(
             j++;
           }
           // Add comment without checking for duplicates
-          comments.push({ start: i, end: j, lines: [currentLine, ...], type: 'singleline' });
+          comments.push({ start: i, end: j, lines: [currentLine, ...], type: 'singleline', nested: nestingLevel > 1 });
           i = j - 1;
         }
       } else if (charCode === 0x2A && source[i + 1] === '/' && !(commentState & (CommentStates.Multiline | CommentStates.Html))) {
@@ -494,7 +500,7 @@ function collectComments(
         }
         i++;
         // Add comment without checking for duplicates
-        comments.push({ start: commentStart, end: i, lines: [currentLine, ...], type: 'jsdoc' });
+        comments.push({ start: commentStart, end: i, lines: [currentLine, ...], type: 'jsdoc', nested: nestingLevel > 1 });
       }
     }
   }
@@ -512,7 +518,7 @@ function collectComments(
 
     if (commentState & CommentStates.Multiline && commentStart >= 0) {
       // Add comment without checking for duplicates
-      comments.push({ start: commentStart, end: source.length, lines: [currentLine, ...], type: 'multiline' });
+      comments.push({ start: commentStart, end: source.length, lines: [currentLine, ...], type: 'multiline', nested: nestingLevel > 1 });
     }
   }
 
