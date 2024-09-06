@@ -1,3 +1,5 @@
+
+// comments.ts
 // Comment States Bitmask
 const CommentStates = {
   None: 0,
@@ -352,8 +354,43 @@ function collectComments(
     }
 
     if (commentState & CommentStates.RegExp) {
+      // If inside a regular expression, collect comments as usual.
+      // The comment extractor is still inside a regular expression. 
+      // Handle comments within a regular expression
+      if (charCode === 0x2F) { // '/'
+        if (source[i + 1] === '*') {
+          // Handle multiline comment
+          if (options.commentTypes === 'all' || options.commentTypes === 'multiline') {
+            if (inMultilineComment) {
+              i = findMultilineCommentEnd(source, i) - 1;
+            } else {
+              if (i + 2 < source.length && source[i + 2] !== '#') { // Check for '*/'
+                inMultilineComment = true;
+                commentStart = i;
+              }
+            }
+          }
+          i++;
+        } else if (source[i + 1] === '/' && (options.commentTypes === 'all' || options.commentTypes === 'singleline')) {
+          // Handle single-line comment
+          let j = i + 2;
+          while (j < source.length && !isLineBreak(source.charCodeAt(j))) {
+            j++;
+          }
+          // Add comment without checking for duplicates
+          comments.push({ start: i, end: j, lines: [currentLine, ...], type: 'singleline' });
+          i = j - 1;
+        }
+      } else if (charCode === 0x2A && source[i + 1] === '/' && !(commentState & (CommentStates.Multiline | CommentStates.Html)) && (options.commentTypes === 'all' || options.commentTypes === 'jsdoc')) {
+        // Handle JSDoc comment
+        commentState |= CommentStates.JsDoc;
+        commentStart = i - 1;
+        i++;
+        // Add comment without checking for duplicates
+        comments.push({ start: commentStart, end: i, lines: [currentLine, ...], type: 'jsdoc' });
+      }
       continue;
-    }
+    } 
 
     // Handle multiline comments
     if (charCode === 0x2F && source[i + 1] === '*') {
@@ -369,7 +406,6 @@ function collectComments(
     } else if (inMultilineComment) {
       if (charCode === 0x2A && source[i + 1] === 0x2F) {
         inMultilineComment = false;
-        // Add comment without checking for duplicates
         comments.push({ start: commentStart, end: i + 2, lines: [currentLine, ...], type: 'multiline' });
         i++;
       }
@@ -385,12 +421,10 @@ function collectComments(
         commentStart = i;
       }
       i += 3;
-      // Add comment without checking for duplicates
       comments.push({ start: commentStart, end: i, lines: [currentLine, ...], type: 'html' });
     } else if (commentState & CommentStates.Html) {
       if (source[i] === '-' && source[i + 1] === '-' && source[i + 2] === '>') {
         commentState &= ~CommentStates.Html;
-        // Add comment without checking for duplicates
         comments.push({ start: commentStart, end: i + 3, lines: [currentLine, ...], type: 'html' });
         i += 2;
       }
@@ -405,11 +439,9 @@ function collectComments(
         commentStart = i - 1;
       }
       i++;
-      // Add comment without checking for duplicates
       comments.push({ start: commentStart, end: i, lines: [currentLine, ...], type: 'jsdoc' });
     } else if (commentState & CommentStates.JsDoc && isLineBreak(charCode)) {
       commentState &= ~CommentStates.JsDoc;
-      // Add comment without checking for duplicates
       comments.push({ start: commentStart, end: i, lines: [currentLine, ...], type: 'jsdoc' });
     } else if (commentState & CommentStates.JsDoc) {
       if (isLineBreak(charCode)) {
@@ -428,7 +460,6 @@ function collectComments(
         while (j < source.length && !isLineBreak(source.charCodeAt(j))) {
           j++;
         }
-        // Add comment without checking for duplicates
         comments.push({ start: i, end: j, lines: [currentLine, ...], type: 'singleline' });
         i = j - 1;
       }
@@ -446,7 +477,7 @@ function collectComments(
           while (j < source.length && !isLineBreak(source.charCodeAt(j))) {
             j++;
           }
-          // Add comment without checking for duplicates
+          
           comments.push({ start: i, end: j, lines: [currentLine, ...], type: 'singleline' });
           i = j - 1;
         }
@@ -457,7 +488,6 @@ function collectComments(
           commentStart = i - 1;
         }
         i++;
-        // Add comment without checking for duplicates
         comments.push({ start: commentStart, end: i, lines: [currentLine, ...], type: 'jsdoc' });
       }
     }
@@ -475,7 +505,6 @@ function collectComments(
     }
 
     if (commentState & CommentStates.Multiline && commentStart >= 0) {
-      // Add comment without checking for duplicates
       comments.push({ start: commentStart, end: source.length, lines: [currentLine, ...], type: 'multiline' });
     }
   }
