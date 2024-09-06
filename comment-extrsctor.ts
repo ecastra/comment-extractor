@@ -1,3 +1,4 @@
+
 const CommentStates = {
   None: 0,
   Multiline: 1 << 0,
