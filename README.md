@@ -1,10 +1,6 @@
-## JavaScript and TypeScript Comment Extractor: A Comprehensive Guide
+## A Deep Dive into JavaScript/TypeScript Comment Extraction: Handling Complex Scenarios
 
-This document provides a detailed explanation of a comment extractor for JavaScript and TypeScript, its implementation, and a user guide for its effective use. 
-
-**Introduction**
-
-The comment extractor is a powerful tool designed to efficiently identify and extract comments from JavaScript and TypeScript code. It leverages a state machine, bitmasks, and optimized string search algorithms to ensure accurate comment collection even in complex scenarios.
+This guide delves into the sophisticated workings of a robust JavaScript and TypeScript comment extractor, highlighting its ability to handle various comment types, nested structures, and tricky edge cases, including class declarations, generators, JSX elements, and even comments within regular expressions.
 
 **Key Features:**
 
@@ -12,10 +8,12 @@ The comment extractor is a powerful tool designed to efficiently identify and ex
 * **Handles Nested Comments:**  Accurately recognizes nested multiline comments and correctly identifies their boundaries.
 * **Manages Special Constructs:**  Safely skips over comments within strings, template literals, regular expressions, JSX expressions, and other constructs.
 * **Recognizes Comments Near Special Characters:** Handles comments adjacent to punctuation characters and symbols, including those in template literals.
-* **Efficient Performance:** Utilizes bitmasks and optimized string search algorithms for fast comment extraction, especially in large codebases.
+* **Efficient Performance:**  Utilizes bitmasks, lookup tables, and optimized character type checks for fast comment extraction.
 * **Robust Error Handling:** Includes safeguards to handle potential errors during comment parsing and provides informative feedback.
 * **Handles Comments in Class Declarations:** Accurately identifies and extracts comments within class declarations, even those interspersed with semicolons.
 * **Handles Comments in Class Generators:** Accurately identifies and extracts comments within class generators, ensuring correct parsing of the `*` symbol.
+* **Handles Comments in JSX Fragments:**  Extracts comments that appear before and after opening and closing JSX fragment brackets.
+* **Supports Comments Inside Regular Expressions:** Extracts comments that appear inside regular expressions. 
 * **User-Configurable Comment Types:** Allows the user to specify which comment types to extract using the `commentTypes` option.
 
 **Options:**
@@ -193,11 +191,63 @@ X =
 // This is a single-line comment at the end.
 ```
 
-**Using the Comment Extractor in a Printer:**
+**Example 15: Comments in JSX Fragments:**
+```javascript
+// This is a comment before the JSX fragment
+<>
+  {/* This is a comment inside the JSX fragment. */}
+  <div>Hello!</div> 
+  {/* This is another comment inside the JSX fragment. */}
+</>;
+// This is a comment after the JSX fragment.
+```
 
-Here's a conceptual example of how you might use the `collectComments` function within a JavaScript or TypeScript printer to include comments in your output:
+**Example 16: Comments with tricky edge cases:**
 
 ```javascript
+class MyClass {
+  #privateField = 10; // This is a comment after a private field declaration. 
+  // Another comment inside the class.
+  // And another comment! 
+  // Comments in between function declaration 
+  *generatorMethod() { 
+    // This is a comment inside the generator.
+  }
+
+  // This is a comment after the generator.
+  method() {
+    // This is a comment inside the method.
+    if (x > 5) {
+      // This is a comment inside the if block. 
+      console.log("This is a test."); 
+    } else {
+      // This is a comment inside the else block.
+    }
+  }
+
+  get #propertyName() {
+    // Comment inside getter
+    return 10;
+  }
+
+  set #propertyName(value) {
+    // Comment inside setter
+  }
+}
+
+// This is a comment outside the class declaration.
+// Another comment.
+// And another comment!
+```
+
+**Example 17: Comments inside Regular Expressions:**
+```javascript
+const regex = /This is a regular expression with a comment /* inside *//; // This is a comment after the regex.
+```
+
+**Using the Comment Extractor in a Printer:**
+
+```typescript
 // ... (Assuming you have a code printer function) ...
 
 function printNode(node, commentPlacement = 'after') {
@@ -241,51 +291,3 @@ const output = printNode(myNode, 'before');
 console.log(output);
 ```
 
-**Resulting Output (Example 14):**
-
-```javascript
-// This is a single-line comment at the beginning. 
-/* This is a multiline comment 
-   spanning multiple lines.
-   It contains a nested single-line comment: // This is a nested comment 
-   and another nested multiline comment: /* Nested multiline comment */
-*/
-
-/** This is a JSDoc comment with a nested single-line comment: // This is a nested comment 
-  * It spans multiple lines.
-  */
-
-class MyClass {
-  // This is a comment inside the class. 
-  ;;;
-  /* ++++ */
-  ;;;
-  // This is another comment with semicolons.
-  method() {
-    // This is a comment inside a method.
-  }
-
-  *generatorMethod() {
-    // This is a comment inside the generator method.
-    yield 1; 
-    // This is another comment inside the generator method.
-    yield 2;
-  }
-
-  // This is another comment inside the class.
-}
-
-X =
-/* arrow */
-> y;
-// This is a comment after a punctuator.
-
-/* This is a multiline comment 
-   spanning multiple lines.
-   It contains a nested single-line comment: // This is a nested comment 
-   and another nested multiline comment: /* Nested multiline comment */
-*/
-// This is a single-line comment at the end.
-```
-
- 
