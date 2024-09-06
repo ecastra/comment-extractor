@@ -1,5 +1,5 @@
-// comments.ts
 
+// comments.ts
 // Comment States Bitmask
 const CommentStates = {
   None: 0,
@@ -15,6 +15,7 @@ const CommentStates = {
   ClassDeclaration: 1 << 9,
   InClassDeclaration: 1 << 10, // Inside a class declaration
   GeneratorState: 1 << 11, // Inside a generator function
+  JsxFragment: 1 << 12, // Inside a JSX fragment
 };
 
 // Punctuator States Bitmask
@@ -73,6 +74,23 @@ const PunctuatorStates = {
   Backtick: 262144,
 };
 
+// Lookup table for punctuators (for faster access)
+const punctuatorLookup = new Map<number, number>();
+
+// Populate the lookup table
+for (const [key, value] of Object.entries(PunctuatorStates)) {
+  punctuatorLookup.set(parseInt(key.replace('PunctuatorStates.', ''), 10), value);
+}
+
+// Lookup tables for optimized character type checks
+const lineBreakLookup = new Uint8Array([
+  0x0A, 0x0D, // Line Feed (LF), Carriage Return (CR)
+]);
+
+const stringQuoteLookup = new Uint8Array([
+  0x22, 0x27, 0x60, // " or ' or `
+]);
+
 // Comment Data Type
 interface Comment {
   start: number;
@@ -100,12 +118,8 @@ function collectComments(
   let inMultilineComment = false; // Flag to track if we are inside a multiline comment
 
   // Optimized character type checks
-  const isLineBreak = (charCode: number) =>
-    charCode === 0x0A ||
-    charCode === 0x0D ||
-    (charCode === 0x0D && source.charCodeAt(i + 1) === 0x0A);
-  const isStringQuote = (charCode: number) =>
-    charCode === 0x22 || charCode === 0x27 || charCode === 0x60; // " or ' or `
+  const isLineBreak = (charCode: number) => lineBreakLookup.includes(charCode);
+  const isStringQuote = (charCode: number) => stringQuoteLookup.includes(charCode);
 
   // Handle comments at the beginning of the code
   if (previousTokenEnd === 0) {
@@ -193,6 +207,31 @@ function collectComments(
       commentState &= ~CommentStates.JsxExpression;
     }
 
+    // Handle JSX Fragments
+    if (charCode === 0x3C && source[i + 1] === 0x2F && !(commentState & (CommentStates.String | CommentStates.TemplateLiteral | CommentStates.Multiline | CommentStates.Html | CommentStates.RegExp | CommentStates.JsxExpression))) {
+      // If entering a JSX fragment, set the JsxFragment state and capture the start position
+      commentState |= CommentStates.JsxFragment;
+      commentStart = i;
+      i++;
+    } else if (commentState & CommentStates.JsxFragment && charCode === 0x3E) {
+      // If leaving a JSX fragment, unset the JsxFragment state and add the comment
+      commentState &= ~CommentStates.JsxFragment;
+      if (commentStart >= 0) {
+        // Check for a comment before the closing angle bracket
+        const commentBefore = collectComments(source, commentStart, i, options);
+        if (commentBefore.length) {
+          comments.push(...commentBefore);
+        }
+      }
+      // Capture the end position of the JSX fragment for potential comment after the closing angle bracket
+      commentStart = i;
+      i++;
+    } else if (commentState & CommentStates.JsxFragment) {
+      // Capture the start position of the closing angle bracket for potential comment after the closing angle bracket
+      commentStart = i;
+      i++;
+    }
+
     // Handle array literals
     if (
       charCode === 0x5B &&
@@ -227,8 +266,10 @@ function collectComments(
               if (inMultilineComment) {
                 i = findMultilineCommentEnd(source, i) - 1;
               } else {
-                inMultilineComment = true;
-                commentStart = i;
+                if (i + 2 < source.length && source[i + 2] !== '#') { // Check for '*/'
+                  inMultilineComment = true;
+                  commentStart = i;
+                }
               }
             }
             i++;
@@ -238,14 +279,8 @@ function collectComments(
             while (j < source.length && !isLineBreak(source.charCodeAt(j))) {
               j++;
             }
-            // Check for duplicate comments before adding
-            const existingComment = comments.find(
-              (comment) => comment.start === i && comment.end === j
-            );
-
-            if (!existingComment) { // Add comment only if it's not a duplicate
-              comments.push({ start: i, end: j, lines: [currentLine, ...], type: 'singleline' });
-            }
+            // Add comment without checking for duplicates
+            comments.push({ start: i, end: j, lines: [currentLine, ...], type: 'singleline' });
             i = j - 1;
           }
         } else if (charCode === 0x2A && source[i + 1] === '/' && !(commentState & (CommentStates.Multiline | CommentStates.Html)) && (options.commentTypes === 'all' || options.commentTypes === 'jsdoc')) {
@@ -253,9 +288,8 @@ function collectComments(
           commentState |= CommentStates.JsDoc;
           commentStart = i - 1;
           i++;
-          if (!existingComment) { // Add comment only if it's not a duplicate
-            comments.push({ start: commentStart, end: i, lines: [currentLine, ...], type: 'jsdoc' });
-          }
+          // Add comment without checking for duplicates
+          comments.push({ start: commentStart, end: i, lines: [currentLine, ...], type: 'jsdoc' });
         }
       }
     } else if (
@@ -328,21 +362,17 @@ function collectComments(
       if (commentState & CommentStates.Multiline) {
         i = findMultilineCommentEnd(source, i) - 1;
       } else if (options.commentTypes === 'all' || options.commentTypes === 'multiline') {
-        inMultilineComment = true;
-        commentStart = i;
+        if (i + 2 < source.length && source[i + 2] !== '#') { // Check for '*/'
+          inMultilineComment = true;
+          commentStart = i;
+        }
       }
       i++;
     } else if (inMultilineComment) {
       if (charCode === 0x2A && source[i + 1] === 0x2F) {
         inMultilineComment = false;
-        // Check for duplicate comments before adding
-        const existingComment = comments.find(
-          (comment) => comment.start === commentStart && comment.end === i + 2
-        );
-
-        if (!existingComment) { // Add comment only if it's not a duplicate
-          comments.push({ start: commentStart, end: i + 2, lines: [currentLine, ...], type: 'multiline' });
-        }
+        // Add comment without checking for duplicates
+        comments.push({ start: commentStart, end: i + 2, lines: [currentLine, ...], type: 'multiline' });
         i++;
       }
     } else if (
@@ -357,19 +387,13 @@ function collectComments(
         commentStart = i;
       }
       i += 3;
-      if (!existingComment) { // Add comment only if it's not a duplicate
-        comments.push({ start: commentStart, end: i, lines: [currentLine, ...], type: 'html' });
-      }
+      // Add comment without checking for duplicates
+      comments.push({ start: commentStart, end: i, lines: [currentLine, ...], type: 'html' });
     } else if (commentState & CommentStates.Html) {
       if (source[i] === '-' && source[i + 1] === '-' && source[i + 2] === '>') {
         commentState &= ~CommentStates.Html;
-        const existingComment = comments.find(
-          (comment) => comment.start === commentStart && comment.end === i + 3
-        );
-
-        if (!existingComment) { // Add comment only if it's not a duplicate
-          comments.push({ start: commentStart, end: i + 3, lines: [currentLine, ...], type: 'html' });
-        }
+        // Add comment without checking for duplicates
+        comments.push({ start: commentStart, end: i + 3, lines: [currentLine, ...], type: 'html' });
         i += 2;
       }
     } else if (
@@ -383,18 +407,12 @@ function collectComments(
         commentStart = i - 1;
       }
       i++;
-      if (!existingComment) { // Add comment only if it's not a duplicate
-        comments.push({ start: commentStart, end: i, lines: [currentLine, ...], type: 'jsdoc' });
-      }
+      // Add comment without checking for duplicates
+      comments.push({ start: commentStart, end: i, lines: [currentLine, ...], type: 'jsdoc' });
     } else if (commentState & CommentStates.JsDoc && isLineBreak(charCode)) {
       commentState &= ~CommentStates.JsDoc;
-      const existingComment = comments.find(
-        (comment) => comment.start === commentStart && comment.end === i
-      );
-
-      if (!existingComment) { // Add comment only if it's not a duplicate
-        comments.push({ start: commentStart, end: i, lines: [currentLine, ...], type: 'jsdoc' });
-      }
+      // Add comment without checking for duplicates
+      comments.push({ start: commentStart, end: i, lines: [currentLine, ...], type: 'jsdoc' });
     } else if (commentState & CommentStates.JsDoc) {
       if (isLineBreak(charCode)) {
         currentLine++;
@@ -412,138 +430,15 @@ function collectComments(
         while (j < source.length && !isLineBreak(source.charCodeAt(j))) {
           j++;
         }
-        const existingComment = comments.find(
-          (comment) => comment.start === i && comment.end === j
-        );
-
-        if (!existingComment) { // Add comment only if it's not a duplicate
-          comments.push({ start: i, end: j, lines: [currentLine, ...], type: 'singleline' });
-        }
+        // Add comment without checking for duplicates
+        comments.push({ start: i, end: j, lines: [currentLine, ...], type: 'singleline' });
         i = j - 1;
       }
     } else if (isLineBreak(charCode)) {
       currentLine++;
     } else {
-      // Handle punctuators here
-      switch (charCode) {
-        case 0x2E: // '.'
-          punctuatorState |= PunctuatorStates.Dot;
-          break;
-        case 0x2C: // ','
-          punctuatorState |= PunctuatorStates.Comma;
-          break;
-        case 0x3F: // '?'
-          punctuatorState |= PunctuatorStates.QuestionMark;
-          break;
-        case 0x21: // '!'
-          punctuatorState |= PunctuatorStates.ExclamationMark;
-          break;
-        case 0x3A: // ':'
-          punctuatorState |= PunctuatorStates.Colon;
-          break;
-        case 0x3B: // ';'
-          punctuatorState |= PunctuatorStates.Semicolon;
-          break;
-        case 0x28: // '('
-        case 0x29: // ')'
-          punctuatorState |= PunctuatorStates.Parenthesis;
-          break;
-        case 0x5B: // '['
-        case 0x5D: // ']'
-          punctuatorState |= PunctuatorStates.Bracket;
-          break;
-        case 0x7B: // '{'
-        case 0x7D: // '}'
-          punctuatorState |= PunctuatorStates.CurlyBrace;
-          break;
-        case 0x2B: // '+'
-          punctuatorState |= PunctuatorStates.Plus;
-          break;
-        case 0x2D: // '-'
-          punctuatorState |= PunctuatorStates.Minus;
-          break;
-        case 0x2A: // '*'
-          punctuatorState |= PunctuatorStates.Star;
-          break;
-        case 0x2F: // '/'
-          punctuatorState |= PunctuatorStates.Slash;
-          break;
-        case 0x25: // '%'
-          punctuatorState |= PunctuatorStates.Percent;
-          break;
-        case 0x26: // '&'
-          punctuatorState |= PunctuatorStates.Ampersand;
-          break;
-        case 0x7C: // '|'
-          punctuatorState |= PunctuatorStates.Pipe;
-          break;
-        case 0x5E: // '^'
-          punctuatorState |= PunctuatorStates.Caret;
-          break;
-        case 0x7E: // '~'
-          punctuatorState |= PunctuatorStates.Tilde;
-          break;
-        case 0x3C: // '<'
-          punctuatorState |= PunctuatorStates.LessThan;
-          break;
-        case 0x3E: // '>'
-          punctuatorState |= PunctuatorStates.GreaterThan;
-          break;
-        case 0x3D: // '='
-          // Handle multi-character punctuators like '===' or '!='
-          if (source[i + 1] === '=') {
-            if (source[i + 2] === '=') {
-              punctuatorState |= PunctuatorStates.TripleEquals;
-              i += 2;
-            } else {
-              punctuatorState |= PunctuatorStates.DoubleEquals;
-              i += 1;
-            }
-          } else if (source[i + 1] === '!') {
-            punctuatorState |= PunctuatorStates.NotEquals;
-            i += 1;
-          } else {
-            punctuatorState |= PunctuatorStates.Equals;
-          }
-          break;
-        case 0x22: // '"'
-          // Handle multi-character punctuators like '++' or '--'
-          if (source[i + 1] === '+') {
-            punctuatorState |= PunctuatorStates.Increment;
-            i += 1;
-          } else if (source[i + 1] === '-') {
-            punctuatorState |= PunctuatorStates.Decrement;
-            i += 1;
-          }
-          break;
-        case 0x3F: // '?'
-          if (source[i + 1] === '?') {
-            punctuatorState |= PunctuatorStates.Question;
-            i += 1;
-          }
-          break;
-        case 0x3A: // ':'
-          if (source[i + 1] === ':') {
-            punctuatorState |= PunctuatorStates.Colon2;
-            i += 1;
-          }
-          break;
-        case 0x2E: // '.'
-          if (source[i + 1] === '.' && source[i + 2] === '.') {
-            punctuatorState |= PunctuatorStates.Ellipsis;
-            i += 2;
-          }
-          break;
-        case 0x40: // '@'
-          punctuatorState |= PunctuatorStates.AtSign;
-          break;
-        case 0x60: // '`'
-          punctuatorState |= PunctuatorStates.Backtick;
-          break;
-        default:
-          i++;
-          break;
-      }
+      // Handle punctuators here (use lookup table for faster access)
+      punctuatorState |= punctuatorLookup.get(charCode) || 0; 
 
       // Check for comment start markers after punctuators
       if (charCode === 0x2F && source[i + 1] === '/') {
@@ -553,13 +448,8 @@ function collectComments(
           while (j < source.length && !isLineBreak(source.charCodeAt(j))) {
             j++;
           }
-          const existingComment = comments.find(
-            (comment) => comment.start === i && comment.end === j
-          );
-
-          if (!existingComment) { // Add comment only if it's not a duplicate
-            comments.push({ start: i, end: j, lines: [currentLine, ...], type: 'singleline' });
-          }
+          // Add comment without checking for duplicates
+          comments.push({ start: i, end: j, lines: [currentLine, ...], type: 'singleline' });
           i = j - 1;
         }
       } else if (charCode === 0x2A && source[i + 1] === '/' && !(commentState & (CommentStates.Multiline | CommentStates.Html))) {
@@ -569,16 +459,27 @@ function collectComments(
           commentStart = i - 1;
         }
         i++;
-        if (!existingComment) { // Add comment only if it's not a duplicate
-          comments.push({ start: commentStart, end: i, lines: [currentLine, ...], type: 'jsdoc' });
-        }
+        // Add comment without checking for duplicates
+        comments.push({ start: commentStart, end: i, lines: [currentLine, ...], type: 'jsdoc' });
       }
     }
   }
 
   // Handle comments at the end of the code
   if (nextTokenStart === source.length) {
-    // ... (Similar logic for duplicate check when handling end-of-code comments)
+    for (let i = source.length - 1; i >= 0; i--) {
+      if (source[i] === '/' && (source[i - 1] === '*' || source[i - 1] === '/')) {
+        // Optimized check for single-line or multi-line comment end
+        commentState = source[i - 1] === '*' ? CommentStates.Multiline : CommentStates.None;
+        commentStart = i - 1;
+        break;
+      }
+    }
+
+    if (commentState & CommentStates.Multiline && commentStart >= 0) {
+      // Add comment without checking for duplicates
+      comments.push({ start: commentStart, end: source.length, lines: [currentLine, ...], type: 'multiline' });
+    }
   }
 
   return comments;
